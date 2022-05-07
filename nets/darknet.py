@@ -73,9 +73,9 @@ def darknet_body(x):
         :param x: 输入的图片，大小为 416*416*3
             1.通过DarknetConv2D_BN_Leaky完成一次卷积+标准化+激活函数，获取到shape为416*416*32的特征层
             2.调用resblock_body，构建resblock
-        :return:feat1：
-                feat2：
-                feat3：
+        :return:feat1：特征层1 52*52*256
+                feat2：特征层2 26*26*512
+                feat3：特征层3 13*13*1024
     '''
     # 416,416,3 -> 416,416,32
     x = DarknetConv2D_BN_Leaky(32, (3,3))(x)
