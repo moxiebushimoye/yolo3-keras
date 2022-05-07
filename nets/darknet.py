@@ -44,15 +44,23 @@ def DarknetConv2D_BN_Leaky(*args, **kwargs):
 #   然后对num_blocks进行循环，循环内部是残差结构。
     ## keras.layers.convolutional.ZeroPadding2D(padding=((1,0),(1,0)))
     ## 在第一行前面加一行零,第一列前面加一列零。行数增1,列数增1
+    #  在每一次完成resblock_body后,特征层的宽和高会变为原来的1/2
 #---------------------------------------------------------------------#
 def resblock_body(x, num_filters, num_blocks):
-
+    '''
+        构建 resblock_body
+        :param  x: 输入
+                num_filters:过滤器数量
+                num_blocks:残差结构的堆叠次数
+        :return x:输出
+    '''
     x = ZeroPadding2D(((1,0),(1,0)))(x)
     x = DarknetConv2D_BN_Leaky(num_filters, (3,3), strides=(2,2))(x)
+    # 进行残差结构的堆叠，由num_blocks的数量决定
     for i in range(num_blocks):
-        y = DarknetConv2D_BN_Leaky(num_filters//2, (1,1))(x)
-        y = DarknetConv2D_BN_Leaky(num_filters, (3,3))(y)
-        x = Add()([x,y])
+        y = DarknetConv2D_BN_Leaky(num_filters//2, (1,1))(x) # 利用一个1*1的卷积进行通道数的下降
+        y = DarknetConv2D_BN_Leaky(num_filters, (3,3))(y)   # 利用3*3的卷积进行特征提取
+        x = Add()([x,y]) # 将特征结果和残差边进行相加
     return x
 
 #---------------------------------------------------#
