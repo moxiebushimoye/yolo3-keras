@@ -1,4 +1,6 @@
 import tensorflow as tf
+# 通过导入模块，使用抽象keras backend API写出兼容theano和tensorflow两种backend的代码
+# theano/tensorflow：作为后端（backend）引擎为keras模块提供服务
 from keras import backend as K
 
 
@@ -11,6 +13,7 @@ def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image
     #-----------------------------------------------------------------#
     box_yx = box_xy[..., ::-1]
     box_hw = box_wh[..., ::-1]
+    #  K.cast --> 将张量转换到不同的 dtype 并返回。
     input_shape = K.cast(input_shape, K.dtype(box_yx))
     image_shape = K.cast(image_shape, K.dtype(box_yx))
 
@@ -36,22 +39,44 @@ def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image
 #   将预测值的每个特征层调成真实值
 #---------------------------------------------------#
 def get_anchors_and_decode(feats, anchors, num_classes, input_shape, calc_loss=False):
-    num_anchors = len(anchors)
+    '''
+        以特征层是 13*13 为例
+        :param  feats:某特征层的预测结果 形状：[batch_size,13,13,3*(5+num_class)]
+                                    其中：5=4+1,4：先验框调整参数 1：判断先验框内部是否包含物体
+                anchors:每一个特征层的每一个特征点的三个先验框 形状：[3,2]
+                num_classes:数据集种类个数 以coco数据集为例：80
+
+    '''
+    num_anchors = len(anchors) #3
     #------------------------------------------#
-    #   grid_shape指的是特征层的高和宽
+    #   grid_shape指：获得特征层的高和宽
+    #   以13*13特征层为例：grid_shape [13,13]
     #------------------------------------------#
     grid_shape = K.shape(feats)[1:3]
     #--------------------------------------------------------------------#
     #   获得各个特征点的坐标信息。生成的shape为(13, 13, num_anchors, 2)
+    ##  以此获得每一个特征点在X轴和Y轴上面的坐标信息
+    #   K.tile(x, n) --> 创建一个用 n 平铺 的 x 张量
     #--------------------------------------------------------------------#
+    ## 1 K.arange(0, stop=grid_shape[1])：获得特征点的高 遍历后的结果 ->如果是13*13 相当于获取了一个（0,12）的矩阵
+    ## 2 K.reshape(K.arange(...)),对获取到的矩阵样式进行调整
+    ## 3.K.tile:对1,2步骤进行重复，重复次数为：[grid_shape[0], 1, num_anchors, 1]
+    ###   [w] -> arrange:[13] -> reshape:[1,13,1,1]-> tile:[13,13,3,1]
     grid_x  = K.tile(K.reshape(K.arange(0, stop=grid_shape[1]), [1, -1, 1, 1]), [grid_shape[0], 1, num_anchors, 1])
+    ## 1.K.arange(0, stop=grid_shape[0])：获得特征点的宽 遍历后的结果（同上）
+    ## 2.K.reshape(...) 同上
+    ##   [h] -> arrange:[13] -> reshape:[13,1,1,1]->tile:[13,13,3,1]
     grid_y  = K.tile(K.reshape(K.arange(0, stop=grid_shape[0]), [-1, 1, 1, 1]), [1, grid_shape[1], num_anchors, 1])
+    ## 对获取到的X轴和Y轴坐标信息进行堆叠 -- 获得一个[13,13,3,2]的矩阵，是每一个特征点的坐标信息
     grid    = K.cast(K.concatenate([grid_x, grid_y]), K.dtype(feats))
     #---------------------------------------------------------------#
-    #   将先验框进行拓展，生成的shape为(13, 13, num_anchors, 2)
+    #   将先验框进行拓展，生成shape为(13, 13, num_anchors, 2)
     #---------------------------------------------------------------#
+    # 经过reshape()后先验框的大小为：[1,1,3,2]
     anchors_tensor = K.reshape(K.constant(anchors), [1, 1, num_anchors, 2])
+    # 经过tile()后先验框的大小为：[13,13,3,2]
     anchors_tensor = K.tile(anchors_tensor, [grid_shape[0], grid_shape[1], 1, 1])
+
 
     #---------------------------------------------------#
     #   将预测结果调整成(batch_size,13,13,3,85)
@@ -60,11 +85,16 @@ def get_anchors_and_decode(feats, anchors, num_classes, input_shape, calc_loss=F
     #   1代表的是框的置信度
     #   80代表的是种类的置信度
     #---------------------------------------------------#
+    ## 对预测结果进行reshape,对原始结果的最后一维进行拆分
+        ## 原始预测结果：[batch_size,13,13,3*(5+num_class)] --> reshape:[batch_size,13,13,3,5+num_class]
+        ## feats:[batch_size,h,w,anchors(先验框数量)，先验框调整参数+框内部是否包含物体+物体种类]
     feats           = K.reshape(feats, [-1, grid_shape[0], grid_shape[1], num_anchors, num_classes + 5])
     #------------------------------------------#
     #   对先验框进行解码，并进行归一化
     #------------------------------------------#
+    ## 取出前两个维度，利用sigmoid对先验框的中心进行调整
     box_xy          = (K.sigmoid(feats[..., :2]) + grid) / K.cast(grid_shape[::-1], K.dtype(feats))
+    ## 对宽高进行调整  anchors_tensor：先验框的宽高
     box_wh          = K.exp(feats[..., 2:4]) * anchors_tensor / K.cast(input_shape[::-1], K.dtype(feats))
     #------------------------------------------#
     #   获得预测框的置信度
@@ -173,11 +203,19 @@ if __name__ == "__main__":
     #   将预测值的每个特征层调成真实值
     #---------------------------------------------------#
     def get_anchors_and_decode(feats, anchors, num_classes):
+        '''
+                以特征层是 13*13 为例
+                :param  feats:某特征层的预测结果 形状：[batch_size,13,13,3*(5+num_class)]
+                                            其中：5=4+1,4：先验框调整参数 1：判断先验框内部是否包含物体
+                        anchors:每一个特征层的每一个特征点的三个先验框 形状：[3,2]
+                        num_classes:数据集种类个数 以coco数据集为例：80
+
+            '''
         # feats     [batch_size, 13, 13, 3 * (5 + num_classes)]
         # anchors   [3, 2]
         # num_classes 
         # 3
-        num_anchors = len(anchors)
+        num_anchors = len(anchors) # 3
         #------------------------------------------#
         #   grid_shape指的是特征层的高和宽
         #   grid_shape [13, 13] 
@@ -208,19 +246,26 @@ if __name__ == "__main__":
         #   80代表的是种类的置信度
         #   [batch_size, 13, 13, 3 * (5 + num_classes)]
         #   [batch_size, 13, 13, 3, 5 + num_classes]
+        #################################################################################################
+        ## 对预测结果进行reshape,对原始结果的最后一维进行拆分
+        ## 原始预测结果：[batch_size,13,13,3*(5+num_class)] --> reshape:[batch_size,13,13,3,5+num_class]
+        ## feats:[batch_size,h,w,anchors(先验框数量)，先验框调整参数+框内部是否包含物体+物体种类]
+        #################################################################################################
         #---------------------------------------------------#
         feats           = np.reshape(feats, [-1, grid_shape[0], grid_shape[1], num_anchors, num_classes + 5])
         #------------------------------------------#
         #   对先验框进行解码，并进行归一化
         #------------------------------------------#
+        ## 取出前两个维度，利用sigmoid对先验框的中心进行调整
         box_xy          = sigmoid(feats[..., :2]) + grid
+        ## 对宽高进行调整  anchors_tensor：先验框的宽高
         box_wh          = np.exp(feats[..., 2:4]) * anchors_tensor
         #------------------------------------------#
         #   获得预测框的置信度
         #------------------------------------------#
         box_confidence  = sigmoid(feats[..., 4:5])
         box_class_probs = sigmoid(feats[..., 5:])
-
+        ###   对先验框进行可视化
         box_wh = box_wh / 32
         anchors_tensor = anchors_tensor / 32
         fig = plt.figure()
