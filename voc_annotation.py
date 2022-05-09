@@ -1,3 +1,7 @@
+'''
+参数修改说明：
+    如果是训练VOC数据集，只需要修改 annotation_mode参数（用于指定该文件运行时计算的内容），设置为2.其他参数都不需要修改
+'''
 import os
 import random
 import xml.etree.ElementTree as ET
@@ -8,11 +12,13 @@ from utils.utils import get_classes
 
 #--------------------------------------------------------------------------------------------------------------------------------#
 #   annotation_mode用于指定该文件运行时计算的内容
-#   annotation_mode为0代表整个标签处理过程，包括获得VOCdevkit/VOC2007/ImageSets里面的txt以及训练用的2007_train.txt、2007_val.txt
-#   annotation_mode为1代表获得VOCdevkit/VOC2007/ImageSets里面的txt
-#   annotation_mode为2代表获得训练用的2007_train.txt、2007_val.txt
+#   annotation_mode为0代表整个标签处理过程，包括获得VOCdevkit/VOC2007/ImageSets里面的txt，用于划分训练集，验证集和验证集
+#                       并在根目录下生成训练用的2007_train.txt、2007_val.txt
+#   annotation_mode为1代表获得VOCdevkit/VOC2007/ImageSets里面的txt，用于划分训练集，验证集和验证集
+#   annotation_mode为2代表在根目录下获得训练用的2007_train.txt、2007_val.txt
 #--------------------------------------------------------------------------------------------------------------------------------#
-annotation_mode     = 0
+### 当训练voc数据集时，训练集验证集测试集已经划分好了，所以这里设置为2就行
+annotation_mode     = 2
 #-------------------------------------------------------------------#
 #   必须要修改，用于生成2007_train.txt、2007_val.txt的目标信息
 #   与训练和预测所用的classes_path一致即可
