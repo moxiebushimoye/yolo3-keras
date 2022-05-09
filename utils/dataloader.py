@@ -30,15 +30,18 @@ class YoloDatasets(keras.utils.Sequence):
         for i in range(index * self.batch_size, (index + 1) * self.batch_size):  
             i           = i % self.length
             #---------------------------------------------------#
-            #   训练时进行数据的随机增强
+            #   训练时进行数据的随机增强 - 本质上进行随机的扭曲、翻转、色域变化，让图形多变，增加模型的鲁棒性
             #   验证时不进行数据的随机增强
             #---------------------------------------------------#
             image, box  = self.get_random_data(self.annotation_lines[i], self.input_shape, random = self.train)
+            ###数据增强后对图片进行简单的预处理（归一化）。之后将获取的图片和对应的框传入image_data和box_data中###
             image_data.append(preprocess_input(np.array(image, np.float32)))
             box_data.append(box)
 
         image_data  = np.array(image_data)
         box_data    = np.array(box_data)
+        ### 对真实框进行预处理   ###
+        ### 处理后将y_true和图片一起传入网络中进行loss计算获得损失值再进行反向梯度
         y_true      = self.preprocess_true_boxes(box_data, self.input_shape, self.anchors, self.num_classes)
         return [image_data, *y_true], np.zeros(self.batch_size)
 
@@ -170,6 +173,9 @@ class YoloDatasets(keras.utils.Sequence):
         return image_data, box_data
 
     def preprocess_true_boxes(self, true_boxes, input_shape, anchors, num_classes):
+        '''
+        将真实框映射在特征层上
+        '''
         assert (true_boxes[..., 4]<num_classes).all(), 'class id must be less than num_classes'
         #-----------------------------------------------------------#
         #   获得框的坐标和图片的大小
@@ -188,7 +194,7 @@ class YoloDatasets(keras.utils.Sequence):
         m           = true_boxes.shape[0]
         grid_shapes = [input_shape // {0:32, 1:16, 2:8}[l] for l in range(num_layers)]
         #-----------------------------------------------------------#
-        #   y_true的格式为 416x416
+        #   y_true的格式为 416x416 y_true--3个特征层的shape
         #   (m,13,13,3,85)
         #   (m,26,26,3,85)
         #   (m,52,52,3,85)
@@ -197,6 +203,7 @@ class YoloDatasets(keras.utils.Sequence):
                     dtype='float32') for l in range(num_layers)]
 
         #-----------------------------------------------------------#
+        #   对真实框进行预处理
         #   通过计算获得真实框的中心和宽高
         #   中心点(m,n,2) 宽高(m,n,2)
         #-----------------------------------------------------------#
@@ -210,7 +217,7 @@ class YoloDatasets(keras.utils.Sequence):
 
         #-----------------------------------------------------------#
         #   [9,2] -> [1,9,2]
-        #   [0,0] 获得anchor_maxes右下角，anchor_mins左上角
+        #   以[0,0]为原点 获得anchor_maxes右下角，anchor_mins左上角
         #-----------------------------------------------------------#
         anchors         = np.expand_dims(anchors, 0)
         anchor_maxes    = anchors / 2.
@@ -257,9 +264,12 @@ class YoloDatasets(keras.utils.Sequence):
             #   获得每一个真实框最对应的先验框。
             #-----------------------------------------------------------#
             best_anchor = np.argmax(iou, axis=-1)
-
+            ## 对best_anchor进行循环
             for t, n in enumerate(best_anchor):
                 #-----------------------------------------------------------#
+                #   对每个真实框进行循环，在循环的过程中对每一个特征层进行循环
+                #   判断最对应的先验框是否属于这个特征层，如果属于，就对真实框坐标进行向下取整
+                #       （因为YOLO每一个真实框是由得左上角的特征点进行预测，向下取整相当于获取左上角特征点的坐标信息）
                 #   找到每个真实框所属的特征层
                 #-----------------------------------------------------------#
                 for l in range(num_layers):
@@ -270,14 +280,17 @@ class YoloDatasets(keras.utils.Sequence):
                         i = np.floor(true_boxes[b,t,0] * grid_shapes[l][1]).astype('int32')
                         j = np.floor(true_boxes[b,t,1] * grid_shapes[l][0]).astype('int32')
                         #-----------------------------------------------------------#
-                        #   k指的的当前这个特征点的第k个先验框
+                        #  k指的的当前这个特征点的第k个先验框
+                        ## 利用index（）方法获得这个特征点所对应的先验框 ##
                         #-----------------------------------------------------------#
                         k = self.anchors_mask[l].index(n)
                         #-----------------------------------------------------------#
                         #   c指的是当前这个真实框的种类
+                        ##  获得真实框的种类 ##
                         #-----------------------------------------------------------#
                         c = true_boxes[b, t, 4].astype('int32')
                         #-----------------------------------------------------------#
+                        #  # 将真是框的种类和坐标放进去 #
                         #   y_true的shape为
                         #   (m,13,13,3,85)
                         #   (m,26,26,3,85)
@@ -286,7 +299,7 @@ class YoloDatasets(keras.utils.Sequence):
                         #   1代表的是置信度、80代表的是种类
                         #-----------------------------------------------------------#
                         y_true[l][b, j, i, k, 0:4] = true_boxes[b, t, 0:4]
-                        y_true[l][b, j, i, k, 4] = 1
-                        y_true[l][b, j, i, k, 5+c] = 1
+                        y_true[l][b, j, i, k, 4] = 1 # 框内是否包含物体
+                        y_true[l][b, j, i, k, 5+c] = 1 # 框内物体的种类
 
         return y_true
