@@ -119,7 +119,13 @@ class YOLO(object):
     #   检测图片
     #---------------------------------------------------#
     def detect_image(self, image, crop = False, count = False):
+        '''
+            图像检测（预测时）函数
+            input:image(输入一张图片)
+            return：image - 绘制完预测框后的结果
+        '''
         #---------------------------------------------------------#
+        ### 前处理 - 转RGB，resize,添加维度，归一化 ###
         #   在这里将图像转换成RGB图像，防止灰度图在预测时报错。
         #   代码仅仅支持RGB图像的预测，所有其它类型的图像都会转化成RGB
         #---------------------------------------------------------#
@@ -136,7 +142,10 @@ class YOLO(object):
 
         #---------------------------------------------------------#
         #   将图像输入网络当中进行预测！
+        ### 后处理过程：解码-NMS-根据NMS保留结果进行绘图 ###
+        ##  内部调用Dececode_box方法，进行解码、NMS等处理 ##
         #---------------------------------------------------------#
+        ### 获得返回的坐标、得分、种类 ###
         out_boxes, out_scores, out_classes = self.sess.run(
             [self.boxes, self.scores, self.classes],
             feed_dict={
@@ -180,7 +189,7 @@ class YOLO(object):
                 crop_image.save(os.path.join(dir_save_path, "crop_" + str(i) + ".png"), quality=95, subsampling=0)
                 print("save crop_" + str(i) + ".png to " + dir_save_path)
         #---------------------------------------------------------#
-        #   图像绘制
+        #   图像绘制  --  对预测结果进行循环，将其绘制在图像上
         #---------------------------------------------------------#
         for i, c in list(enumerate(out_classes)):
             predicted_class = self.class_names[int(c)]

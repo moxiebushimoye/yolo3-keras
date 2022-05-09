@@ -128,18 +128,24 @@ def DecodeBox(outputs,
             confidence      = 0.5,
             nms_iou         = 0.3,
             letterbox_image = True):
-
+    '''
+        对图像预测框进行解码，预测，非极大值抑制（NMS）
+        return：将NMS后保留的框的：坐标、得分、种类全部返回
+    '''
     box_xy = []
     box_wh = []
     box_confidence  = []
     box_class_probs = []
+    ## 对每一个特征层进行循环，将每一个特征层的先验框传入get_anchors_and_decode（）函数中，进行先验框的解码与生成
     for i in range(len(outputs)):
+        ## 获取到先验框的解码预测结果
         sub_box_xy, sub_box_wh, sub_box_confidence, sub_box_class_probs = \
             get_anchors_and_decode(outputs[i], anchors[anchor_mask[i]], num_classes, input_shape)
         box_xy.append(K.reshape(sub_box_xy, [-1, 2]))
         box_wh.append(K.reshape(sub_box_wh, [-1, 2]))
         box_confidence.append(K.reshape(sub_box_confidence, [-1, 1]))
         box_class_probs.append(K.reshape(sub_box_class_probs, [-1, num_classes]))
+    ## 将所有特征层的预测结果进行堆叠，方便进行整体处理
     box_xy          = K.concatenate(box_xy, axis = 0)
     box_wh          = K.concatenate(box_wh, axis = 0)
     box_confidence  = K.concatenate(box_confidence, axis = 0)
@@ -150,20 +156,24 @@ def DecodeBox(outputs,
     #   我们需要对其进行修改，去除灰条的部分。 将box_xy、和box_wh调节成y_min,y_max,xmin,xmax
     #   如果没有使用letterbox_image也需要将归一化后的box_xy, box_wh调整成相对于原图大小的
     #------------------------------------------------------------------------------------------------------------#
+    ###  对图像进行调整，去除添加的灰度条 ###
     boxes       = yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image)
+    ###将预测框的置信度和种类的置信度进行相乘###
     box_scores  = box_confidence * box_class_probs
 
     #-----------------------------------------------------------#
-    #   判断得分是否大于score_threshold
+    #   判断得分是否大于score_threshold（设置好的置信度阈值）
     #-----------------------------------------------------------#
     mask             = box_scores >= confidence
     max_boxes_tensor = K.constant(max_boxes, dtype='int32')
     boxes_out   = []
     scores_out  = []
     classes_out = []
+    ### 对每一个种类进行非极大值抑制 ###
     for c in range(num_classes):
         #-----------------------------------------------------------#
         #   取出所有box_scores >= score_threshold的框，和成绩
+        ### 即获得得分和坐标 ###
         #-----------------------------------------------------------#
         class_boxes      = tf.boolean_mask(boxes, mask[:, c])
         class_box_scores = tf.boolean_mask(box_scores[:, c], mask[:, c])
@@ -177,6 +187,7 @@ def DecodeBox(outputs,
         #-----------------------------------------------------------#
         #   获取非极大抑制后的结果
         #   下列三个分别是：框的位置，得分与种类
+        ###将保留后的框的：坐标，得分，种类进行返回###
         #-----------------------------------------------------------#
         class_boxes         = K.gather(class_boxes, nms_index)
         class_box_scores    = K.gather(class_box_scores, nms_index)
