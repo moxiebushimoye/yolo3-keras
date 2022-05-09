@@ -1,3 +1,6 @@
+'''
+评估时修改记得classes_path
+'''
 import os
 import xml.etree.ElementTree as ET
 
