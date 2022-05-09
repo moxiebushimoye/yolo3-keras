@@ -34,6 +34,8 @@ tf.logging.set_verbosity(tf.logging.ERROR)
    
 3、训练好的权值文件保存在logs文件夹中，每个训练世代（Epoch）包含若干训练步长（Step），每个训练步长（Step）进行一次梯度下降。
    如果只是训练了几个Step是不会保存的，Epoch和Step的概念要捋清楚一下。
+
+    tips: 训练自己的目标，记得修改classes_path为自己数据集在model_data下对应的txt文件（自己创建）    
 '''
 if __name__ == "__main__":
     #---------------------------------------------------------------------#
