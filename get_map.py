@@ -32,7 +32,7 @@ if __name__ == "__main__":
     #   此处的classes_path用于指定需要测量VOC_map的类别
     #   一般情况下与训练和预测所用的classes_path一致即可
     #-------------------------------------------------------#
-    classes_path    = 'model_data/voc_classes.txt'
+    classes_path    = 'model_data/apple.txt'
     #-------------------------------------------------------#
     #   MINOVERLAP用于指定想要获得的mAP0.x
     #   比如计算mAP0.75，可以设定MINOVERLAP = 0.75。
@@ -75,6 +75,7 @@ if __name__ == "__main__":
             image_path  = os.path.join(VOCdevkit_path, "VOC2007/JPEGImages/"+image_id+".jpg")
             image       = Image.open(image_path)
             if map_vis:
+                image=image.convert("RGB")
                 image.save(os.path.join(map_out_path, "images-optional/" + image_id + ".jpg"))
             yolo.get_map_txt(image_id, image, class_names, map_out_path)
         print("Get predict result done.")

@@ -56,8 +56,8 @@ if __name__ == "__main__":
     #   
     #   dir_origin_path和dir_save_path仅在mode='dir_predict'时有效
     #-------------------------------------------------------------------------#
-    dir_origin_path = "img/"
-    dir_save_path   = "img_out/"
+    dir_origin_path = "appleimg/"
+    dir_save_path   = "appleimg_out/"
     #-------------------------------------------------------------------------#
     #   heatmap_save_path   热力图的保存路径，默认保存在model_data下
     #   

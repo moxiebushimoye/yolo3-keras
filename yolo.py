@@ -2,11 +2,13 @@ import colorsys
 import os
 import time
 
+import cv2
 import numpy as np
 from keras import backend as K
 from PIL import ImageDraw, ImageFont
 
 from nets.yolo import yolo_body
+from utils.create_xml import VOC_Sample_Generator
 from utils.utils import (cvtColor, get_anchors, get_classes, preprocess_input,
                          resize_image, show_config)
 from utils.utils_bbox import DecodeBox
@@ -24,8 +26,8 @@ class YOLO(object):
         #   验证集损失较低不代表mAP较高，仅代表该权值在验证集上泛化性能较好。
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #--------------------------------------------------------------------------#
-        "model_path"        : 'model_data/yolo_weights.h5',
-        "classes_path"      : 'model_data/coco_classes.txt',
+        "model_path"        : 'model_data/last_epoch_weights.h5',
+        "classes_path"      : 'model_data/apple.txt',
         #---------------------------------------------------------------------#
         #   anchors_path代表先验框对应的txt文件，一般不修改。
         #   anchors_mask用于帮助代码找到对应的先验框，一般不修改。
@@ -340,6 +342,51 @@ class YOLO(object):
 
         f.close()
         return 
+
+    def get_xml(self,img_path,image,xmlsave_path):
+        '''
+        img_path:图像文件路径
+        image:PIL读取的图片对象
+        xmlsave_path：生成的xml文件存储的文件夹名
+        运行生成图像标注文件
+        '''
+        img_name = img_path.split("/")[-1]
+        xml_name = img_name.split('.')[0]
+        img=cv2.imread(img_path)
+        img_width = img.shape[0]
+        img_height = img.shape[1]
+        img_depth = img.shape[-1]
+        image = cvtColor(image)
+        # ---------------------------------------------------------#
+        #   给图像增加灰条，实现不失真的resize        #   也可以直接resize进行识别
+        # ---------------------------------------------------------#
+        image_data = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
+        # ---------------------------------------------------------#
+        #   添加上batch_size维度，并进行归一化
+        # ---------------------------------------------------------#
+        image_data = np.expand_dims(preprocess_input(np.array(image_data, dtype='float32')), 0)
+
+        out_boxes, out_scores, out_classes = self.sess.run(
+            [self.boxes, self.scores, self.classes],
+            feed_dict={
+                self.yolo_model.input: image_data,
+                self.input_image_shape: [image.size[1], image.size[0]],
+                K.learning_phase(): 0
+            })
+        if out_classes.size !=0:
+            voc = VOC_Sample_Generator()
+            voc.add_filename(img_name)
+            voc.add_size(img_width, img_height, img_depth)
+            for i, c in list(enumerate(out_classes)):
+                predicted_class = self.class_names[int(c)]
+                box = out_boxes[i]
+                top, left, bottom, right = box
+                top = max(0, np.floor(top).astype('int32'))
+                left = max(0, np.floor(left).astype('int32'))
+                bottom = min(image.size[1], np.floor(bottom).astype('int32'))
+                right = min(image.size[0], np.floor(right).astype('int32'))
+                voc.build_object(predicted_class,left,top,right,bottom)
+            voc.build(xmlsave_path + xml_name + ".xml")
 
     def close_session(self):
         self.sess.close()
