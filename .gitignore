@@ -7,7 +7,7 @@ Medical_Datasets/
 lfw/
 logs/
 model_data/
-
+xml_anno/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
